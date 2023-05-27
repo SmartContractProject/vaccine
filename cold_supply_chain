@@ -1,0 +1,297 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.7;
+
+contract VaccineColdSupplyChain {
+    uint256  public deploymentDate;
+    uint256  private handoverTime;
+    string  public govName;
+    address public govEA;
+    address public manufacturerEA;//1
+    address public Transit_Mfr_AptEA;//2
+    address public Aircraft_AirborneEA;//3
+    address public Transit_Apt_NationalEA;//4
+    address public National_StgEA;//5
+    address public Transit_National_RegionalEA;//6
+    address public Regional_StgEA;//7
+    address public Transit_Regional_MedEA;//8
+    address public Medical_CenterEA;//9
+    string  public vaccineBrand;//
+    int256  public lowerTempThreshold;
+    int256  public upperTempThreshold;
+    uint256 private additionDate;
+    enum  supplyChain {start,Manufacturer, Transit_Mfr_Apt, Aircraft_Airborne, Transit_Apt_National,
+    National_Stg, Transit_National_Regional, Regional_Stg, Transit_Regional_Med, Medical_Center}
+    supplyChain  public coldSupplyChain;
+    
+    constructor(string memory _govName,string memory _vaccineType,int256 _lowerTempThreshold, int256 _upperTempThreshold) {
+    govName = _govName;
+    govEA = msg.sender;
+    vaccineBrand = _vaccineType;
+    stakeholdersList[msg.sender] = true;
+    deploymentDate = block.timestamp;
+    lowerTempThreshold = _lowerTempThreshold;
+    upperTempThreshold = _upperTempThreshold;
+    }
+    
+    modifier onlyGov() {           
+    require(govEA == msg.sender,  "Only government can perform this operation");
+    _;
+    } 
+
+    modifier onlyManufacturer(){
+      require(manufacturerEA == msg.sender , "Only manufacturer can perform this operation");
+      _;
+    }
+      
+    mapping (address => bool)  private stakeholdersList; 
+    mapping (uint256 => chain) public allChains;
+   
+     struct chain{
+     supplyChain chainName;
+     address chainAddress;
+     }
+
+    event newChain(uint256 NO, supplyChain cName, address cEA);
+
+   // Adding a chain
+    function addChain(supplyChain _cName, address _cEA, uint256 _chainNo) public onlyGov {
+    require(!stakeholdersList[_cEA], "stakeholder already exists"); 
+    additionDate = block.timestamp;    
+    stakeholdersList[_cEA] = true;
+    allChains[_chainNo] = chain(_cName, _cEA);
+    if (_chainNo == 1){
+    manufacturerEA = allChains[_chainNo].chainAddress;
+    }
+    else if (_chainNo == 2){
+    Transit_Mfr_AptEA = allChains[_chainNo].chainAddress;
+    }
+    else if (_chainNo == 3){
+    Aircraft_AirborneEA = allChains[_chainNo].chainAddress;
+    }
+    else if (_chainNo == 4){
+    Transit_Apt_NationalEA = allChains[_chainNo].chainAddress;
+    } else if (_chainNo == 5){
+    National_StgEA = allChains[_chainNo].chainAddress;
+    } else if (_chainNo == 6){
+    Transit_National_RegionalEA = allChains[_chainNo].chainAddress;
+    } else if (_chainNo == 7){
+    Regional_StgEA = allChains[_chainNo].chainAddress;
+    } 
+    else if (_chainNo == 8){
+    Transit_Regional_MedEA = allChains[_chainNo].chainAddress;
+    } 
+    else if (_chainNo == 9){
+    Medical_CenterEA = allChains[_chainNo].chainAddress;
+    emit newChain(_chainNo,_cName, _cEA);  
+    }
+    }
+     event VaccineLocation (string ,uint256); 
+     event TempViolation (string ,int256); 
+     event LightViolation (string); 
+
+     function startProduction() public onlyManufacturer {
+     coldSupplyChain=supplyChain.Manufacturer;
+     emit  VaccineLocation ("VACINE SHIPMENT IN PRODUCTION FACILITY",block.timestamp);
+     }
+
+    function updateVaccineLocation() public {
+     if (msg.sender == Transit_Mfr_AptEA){
+     require(coldSupplyChain==supplyChain.Manufacturer);
+     coldSupplyChain=supplyChain.Transit_Mfr_Apt;
+     emit  VaccineLocation ("VACINE SHIPMENT IN TRANSIT FROM MANUFACTURER TO AIRPORT",block.timestamp);
+     }
+     else if (msg.sender == Aircraft_AirborneEA) {
+     require(coldSupplyChain==supplyChain.Transit_Mfr_Apt);
+     coldSupplyChain=supplyChain.Aircraft_Airborne;
+     emit  VaccineLocation ("VACINE SHIPMENT IN AIRCRAFT",block.timestamp);
+     }
+     else if (msg.sender == Transit_Apt_NationalEA) {
+     require(coldSupplyChain==supplyChain.Aircraft_Airborne);
+     coldSupplyChain=supplyChain.Transit_Apt_National;
+     emit  VaccineLocation ("VACINE SHIPMENT IN TRANSIT FROM AIRPORT TO NATIONAL STORAGE FACILITY",block.timestamp);
+     }else if (msg.sender == National_StgEA) {
+     require(coldSupplyChain==supplyChain.Transit_Apt_National);
+     coldSupplyChain=supplyChain.National_Stg;
+     emit  VaccineLocation ("VACINE SHIPMENT IN NATIONAL STORAGE FACILITY",block.timestamp);
+     }else if (msg.sender == Transit_National_RegionalEA) {
+     require(coldSupplyChain==supplyChain.National_Stg);
+     coldSupplyChain=supplyChain.Transit_National_Regional;
+     emit  VaccineLocation ("VACINE SHIPMENT IN TRANSIT FROM NATIONAL TO REGIONAL STORAGE FACILITY",block.timestamp);
+     }else if (msg.sender == Regional_StgEA) {
+     require(coldSupplyChain==supplyChain.Transit_National_Regional);
+     coldSupplyChain=supplyChain.Regional_Stg;
+     emit  VaccineLocation ("VACINE SHIPMENT IN REGIONAL STORAGE",block.timestamp);
+     }else if (msg.sender == Transit_Regional_MedEA) {
+     require(coldSupplyChain==supplyChain.Regional_Stg);
+     coldSupplyChain=supplyChain.Transit_Regional_Med;
+     emit  VaccineLocation ("VACINE SHIPMENT IN TRANSIT TO MEDICAL CENTRE",block.timestamp);
+     }else if (msg.sender == Medical_CenterEA) {
+     require(coldSupplyChain==supplyChain.Transit_Regional_Med);
+     coldSupplyChain=supplyChain.Medical_Center;
+     emit  VaccineLocation ("VACINE SHIPMENT IN MEDICAL CENTRE",block.timestamp);
+     }
+     }
+
+     struct lotTemp{
+      uint256 time;
+      string  vaccineLotID;
+      int256 tempSensorData;
+      supplyChain location;
+    }
+    
+    mapping (string  => mapping ( uint256=> lotTemp)) public violationsVaccineLotTemp;
+    
+    struct violatingTempSensor {
+        string ID;
+        uint256 IDhash;
+        uint256 count;
+     }
+     violatingTempSensor[] public ArrayViolateTempSensor;
+     mapping (string  => violatingTempSensor) public ListViolateTempSensor;
+    
+     function tempData(int256 _temp,string memory sensorID) public {// sensorID is vaccineLotID
+         require(!stakeholdersList[msg.sender],"Stakeholder can not be a sensor"); 
+
+     bool found = false;
+        uint256 sensorIDhash = uint256(keccak256(abi.encodePacked(sensorID)));
+
+        for (uint i = 0; i < ArrayViolateTempSensor.length; i++) {
+            if (sensorIDhash == ArrayViolateTempSensor[i].IDhash) {
+                ArrayViolateTempSensor[i].count++;
+                ListViolateTempSensor[sensorID].count=ListViolateTempSensor[sensorID].count+1;
+                found = true;
+                break;
+        }
+        }
+        if (!found) {
+            ArrayViolateTempSensor.push(violatingTempSensor(sensorID,sensorIDhash, 1));
+            ListViolateTempSensor[sensorID]= violatingTempSensor (sensorID,sensorIDhash,1);
+        }
+    
+     if(coldSupplyChain == supplyChain.Manufacturer){
+     if(_temp <= lowerTempThreshold || _temp >= upperTempThreshold){
+     violationsVaccineLotTemp [sensorID][ListViolateTempSensor[sensorID].count] = lotTemp(block.timestamp,sensorID,_temp,supplyChain.Manufacturer);
+              emit TempViolation("temperature is out of acceptable range", _temp);
+                           }
+     }
+     else if(coldSupplyChain == supplyChain.Transit_Mfr_Apt){
+      violationsVaccineLotTemp [sensorID][ListViolateTempSensor[sensorID].count] = lotTemp(block.timestamp,sensorID,_temp,supplyChain.Transit_Mfr_Apt);
+      if(_temp <= lowerTempThreshold || _temp >= upperTempThreshold){
+              emit TempViolation("temperature is out of acceptable range", _temp);
+                           }
+     }
+     else if(coldSupplyChain == supplyChain.Aircraft_Airborne){
+      violationsVaccineLotTemp [sensorID][ListViolateTempSensor[sensorID].count]= lotTemp(block.timestamp,sensorID,_temp,supplyChain.Aircraft_Airborne);
+      if(_temp <= lowerTempThreshold || _temp >= upperTempThreshold){
+              emit TempViolation("temperature is out of acceptable range", _temp);
+                           }
+     }
+     else if(coldSupplyChain == supplyChain.Transit_Apt_National){
+      violationsVaccineLotTemp [sensorID][ListViolateTempSensor[sensorID].count] = lotTemp(block.timestamp,sensorID,_temp,supplyChain.Transit_Apt_National);
+      if(_temp <= lowerTempThreshold || _temp >= upperTempThreshold){
+              emit TempViolation("temperature is out of acceptable range", _temp);
+                           }
+     }else if(coldSupplyChain == supplyChain.National_Stg){
+      violationsVaccineLotTemp [sensorID][ListViolateTempSensor[sensorID].count] = lotTemp(block.timestamp,sensorID,_temp,supplyChain.National_Stg);
+      if(_temp <= lowerTempThreshold || _temp >= upperTempThreshold){
+              emit TempViolation("temperature is out of acceptable range", _temp);
+                           }
+     }else if(coldSupplyChain == supplyChain.Transit_National_Regional){
+      violationsVaccineLotTemp [sensorID][ListViolateTempSensor[sensorID].count] = lotTemp(block.timestamp,sensorID,_temp,supplyChain.Transit_National_Regional);
+      if(_temp <= lowerTempThreshold || _temp >= upperTempThreshold){
+              emit TempViolation("temperature is out of acceptable range", _temp);
+                           }
+     }else if(coldSupplyChain == supplyChain.Regional_Stg){
+      violationsVaccineLotTemp [sensorID][ListViolateTempSensor[sensorID].count] = lotTemp(block.timestamp,sensorID,_temp,supplyChain.Regional_Stg);
+      if(_temp <= lowerTempThreshold || _temp >= upperTempThreshold){
+              emit TempViolation("temperature is out of acceptable range", _temp);
+                           }
+     }else if(coldSupplyChain == supplyChain.Transit_Regional_Med){
+      violationsVaccineLotTemp [sensorID][ListViolateTempSensor[sensorID].count] = lotTemp(block.timestamp,sensorID,_temp,supplyChain.Transit_Regional_Med);
+      if(_temp <= lowerTempThreshold || _temp >= upperTempThreshold){
+              emit TempViolation("temperature is out of acceptable range", _temp);
+                           }
+     }else if(coldSupplyChain == supplyChain.Medical_Center){
+      violationsVaccineLotTemp [sensorID][ListViolateTempSensor[sensorID].count] = lotTemp(block.timestamp,sensorID,_temp,supplyChain.Medical_Center);
+      if(_temp <= lowerTempThreshold || _temp >= upperTempThreshold){
+              emit TempViolation("temperature is out of acceptable range", _temp);
+                           }
+     }
+     }
+     
+      struct lotLight{
+      bool lightExposure;
+      uint256 time;
+      string  vaccineLotID;
+      supplyChain location;
+      }
+
+      struct violatingLightSensor {
+        string lightID;
+        uint256 lightIDhash;
+        uint256 lightcount;
+      }
+     
+      violatingLightSensor[] public ArrayViolateLightSensor;
+      mapping (string  => violatingLightSensor) public ListViolateLightSensor;
+
+      mapping (string => lotLight) public vaccineLotLight;
+      mapping (string => mapping (uint256 => lotLight)) public vaccineLotLightRecord;
+
+     function lightExposure (bool lightViotation,string memory sensorIDNo) public {
+
+       bool exist = false;
+        uint256 lSensorIDhash = uint256(keccak256(abi.encodePacked(sensorIDNo)));
+
+        for (uint i = 0; i < ArrayViolateLightSensor.length; i++) {
+            if (lSensorIDhash == ArrayViolateLightSensor[i].lightIDhash) {
+                ArrayViolateLightSensor[i].lightcount++;
+                ListViolateLightSensor[sensorIDNo].lightcount=ListViolateLightSensor[sensorIDNo].lightcount+1;
+                exist = true;
+                break;
+        }
+        }
+        if (!exist) {
+            ArrayViolateLightSensor.push(violatingLightSensor(sensorIDNo,lSensorIDhash, 1));
+            ListViolateLightSensor[sensorIDNo]= violatingLightSensor (sensorIDNo,lSensorIDhash,1);
+        }    
+
+     if(coldSupplyChain == supplyChain.Manufacturer){
+     vaccineLotLightRecord [sensorIDNo][ListViolateLightSensor[sensorIDNo].lightcount] =lotLight(lightViotation,block.timestamp,sensorIDNo,supplyChain.Manufacturer);
+     emit LightViolation ("Light Exposure Detected");
+     }
+     else if(coldSupplyChain == supplyChain.Transit_Mfr_Apt){
+     vaccineLotLightRecord [sensorIDNo][ListViolateLightSensor[sensorIDNo].lightcount]= lotLight(lightViotation,block.timestamp,sensorIDNo,supplyChain.Transit_Mfr_Apt);
+     emit LightViolation ("Light Exposure Detected");
+     }
+     else if(coldSupplyChain == supplyChain.Aircraft_Airborne){
+     vaccineLotLightRecord[sensorIDNo][ListViolateLightSensor[sensorIDNo].lightcount] = lotLight(lightViotation,block.timestamp,sensorIDNo,supplyChain.Aircraft_Airborne);
+     emit LightViolation ("Light Exposure Detected");
+     }
+     else if(coldSupplyChain == supplyChain.Transit_Apt_National){
+     vaccineLotLightRecord[sensorIDNo][ListViolateLightSensor[sensorIDNo].lightcount] = lotLight(lightViotation,block.timestamp,sensorIDNo,supplyChain.Transit_Apt_National);
+     emit LightViolation ("Light Exposure Detected");
+     }
+     else if(coldSupplyChain == supplyChain.National_Stg){
+     vaccineLotLightRecord[sensorIDNo][ListViolateLightSensor[sensorIDNo].lightcount] = lotLight(lightViotation,block.timestamp,sensorIDNo,supplyChain.National_Stg);
+     emit LightViolation ("Light Exposure Detected");
+     }
+     else if(coldSupplyChain == supplyChain.Transit_National_Regional){
+     vaccineLotLightRecord[sensorIDNo][ListViolateLightSensor[sensorIDNo].lightcount] = lotLight(lightViotation,block.timestamp,sensorIDNo,supplyChain.Transit_National_Regional);
+     emit LightViolation ("Light Exposure Detected");
+     }
+     else if(coldSupplyChain == supplyChain.Regional_Stg){
+     vaccineLotLightRecord[sensorIDNo][ListViolateLightSensor[sensorIDNo].lightcount]= lotLight(lightViotation,block.timestamp,sensorIDNo,supplyChain.Regional_Stg);
+     emit LightViolation ("Light Exposure Detected");
+     }
+     else if(coldSupplyChain == supplyChain.Transit_Regional_Med){
+     vaccineLotLightRecord[sensorIDNo][ListViolateLightSensor[sensorIDNo].lightcount] = lotLight(lightViotation,block.timestamp,sensorIDNo,supplyChain.Transit_Regional_Med);
+     emit LightViolation ("Light Exposure Detected");
+     }
+     else if(coldSupplyChain == supplyChain.Medical_Center){
+     vaccineLotLightRecord[sensorIDNo][ListViolateLightSensor[sensorIDNo].lightcount] = lotLight(lightViotation,block.timestamp,sensorIDNo,supplyChain.Medical_Center);
+     emit LightViolation ("Light Exposure Detected");
+     }
+     }
+        
+}

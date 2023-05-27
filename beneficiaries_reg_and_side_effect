@@ -1,0 +1,131 @@
+
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.7;
+
+contract VaccineData {
+    uint256 public deploymentDate;
+    string public govName;
+    address public govEA;
+    uint256 public adminCount = 0;
+    uint256 public benCount =0;
+    enum  gType {male,female}
+    enum  mType {married,divorced,single}
+    enum  vType {PfizerBioNTech, AstraZeneca, Sinopharm, Moderna, Janssen}
+
+    //Section 1: ADMIN REGISTRATION
+
+    struct Admin {
+    uint256 index; 
+    string adminName;
+    address adminEA;
+    }
+
+    mapping (address => bool) public adminList; 
+    mapping (uint256 => Admin) public allAdmins;
+
+    event NewAdmin(uint256 index, string adminName, address adminEA);
+
+    constructor(string memory _govName) {
+    govName = _govName;// creator adds his name
+    govEA = msg.sender;
+    adminList[msg.sender] = true;
+    deploymentDate = block.timestamp;
+    adminCount++;
+     allAdmins[adminCount] = Admin(adminCount, govName, govEA); //creator is first admin
+    }
+
+    modifier onlyAdmin() {           
+    require(adminList[msg.sender],  "Only registered admins can perform this operation");
+    _;
+    } 
+
+    // Adding a new admin to the list
+    function addAdmin(string memory _adminName, address _adminEA) public onlyAdmin {
+
+    checkAdminAddress(_adminEA); // calling the function checkAdminAddress
+
+    deploymentDate = block.timestamp; 
+    adminList[_adminEA] = true;
+    adminCount++;
+    allAdmins[adminCount] = Admin(adminCount, _adminName, _adminEA); 
+    emit NewAdmin(adminCount, _adminName, _adminEA);
+    }
+
+    function checkAdminAddress(address  _address) public view { // function to check if an admin is already registered
+        require(!adminList[_address], "Admin already exists"); 
+    }
+
+  //Section 2: REGISTRATION AND ADMINISTRATION OF BENEFICIARIES
+
+    uint256 private registrationTime;
+    uint256 private benId;
+
+    struct Beneficiary {// need to add enum for special need, chronical disease 
+    string name;
+    string idNumber;
+    uint256 mobileNumber;
+    string picHash;
+    uint DOB;
+    gType gender;// should be enum
+    mType maritalStatus;// should be enum
+    vType vaccineType;// should be enum
+    uint256 administrationDate;
+    string vaccineDoseLot; 
+    string observedSideEffect;
+    }
+
+    mapping (string => bool) public benList;
+    mapping (string => Beneficiary) public beneficiaries;
+    
+    function administerBeneficiary(
+    string memory _name, 
+    string memory _idNumber,
+    uint256 _mobileNumber, 
+    string memory _picHash,
+    uint256 _DOB, 
+    gType  _gender,
+    mType _maritalStatus,
+    vType _vaccineType,
+    string memory _vaccineDoseLot) public onlyAdmin {//vaccineDoseLot is what opens the door to access the cold supply chain 
+    require(!benList[_idNumber], "Person already registered"); // checking if the person exists
+    benList[_idNumber] = true; 
+    registrationTime = block.timestamp; // getting the registration time 
+    benCount++;
+    beneficiaries[ _idNumber] = Beneficiary(_name,_idNumber,_mobileNumber,_picHash,_DOB,_gender,_maritalStatus,_vaccineType,registrationTime,_vaccineDoseLot,'0');
+    } 
+
+    // Section 3: REGISTRATION OF SIDE EFFECTS 
+    
+    uint256 private sideEffectsTime;
+    uint256 private sideEffectBenCount = 0; 
+    
+    struct VaccineEffects{
+        string  idNumber;
+        string  sideEffectName;
+        string  chronicalDisease;
+        string specialNeed;
+        uint256 sideEffectsTime;
+    }
+
+     mapping (uint256 => VaccineEffects) public sideEffectCases;
+     mapping (string => VaccineEffects) public sideEffectBen;
+
+    function registerSideEffects(
+        string memory _idNumber,
+        string memory _sideEffectName,
+        string memory _chronicalDisease,
+        string memory _specialNeed
+        )
+        public onlyAdmin {
+
+        require(benList[_idNumber], "Person not found");
+
+         sideEffectsTime = block.timestamp;
+
+         beneficiaries[_idNumber].observedSideEffect = _sideEffectName;
+
+         sideEffectBenCount++;
+         sideEffectCases[sideEffectBenCount] = VaccineEffects(_idNumber, _sideEffectName,_chronicalDisease,_specialNeed,sideEffectsTime);
+         sideEffectBen[_idNumber]= VaccineEffects(_idNumber, _sideEffectName,_chronicalDisease,_specialNeed,sideEffectsTime);
+    }
+}
